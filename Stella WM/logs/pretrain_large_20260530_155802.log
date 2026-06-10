@@ -1,0 +1,31 @@
+15:58:02  Log: logs\pretrain_large_20260530_155802.log
+15:58:02  ==============================================================
+15:58:02    PRETRAIN — LargeRSSM 128.8M params
+15:58:02    Device: cuda
+15:58:02    Epochs: 10 | LR: 0.0001 | Batch: 32
+15:58:02    Wikipedia: 2000 arts | Max seqs: 50,000
+15:58:02  ==============================================================
+15:58:02  
+[1/4] LargeRSSM...
+15:58:03    128.8M params en cuda
+15:58:03  
+[2/4] Datos de Stella...
+15:58:03    Chats: 781 mensajes -> 39 seqs
+15:58:03    Pensamientos: 179 seqs
+15:58:03    Episodios: 143 items -> 1 seq
+15:58:03    Web: 43 triggers -> 1 seq
+15:58:03    Total Stella: 220 seqs
+15:58:03  
+[3/4] Wikipedia ES...
+15:58:03    Streaming Wikipedia ES (2000 articulos, max 3 seqs/art)...
+15:58:08      500/2000 arts, 1347 seqs
+15:58:11      1000/2000 arts, 2712 seqs
+15:58:11      1500/2000 arts, 4034 seqs
+15:58:11      2000/2000 arts, 5471 seqs
+15:58:11    Wikipedia: 2000 arts -> 5471 seqs
+15:58:11  
+[4/4] Codificando y entrenando...
+15:58:11    Total a codificar: 5,691 seqs
+15:58:11    Codificando 30,079 textos en GPU...
+15:58:43    Cache guardado: worldmodel\weights\pretrain_large_cache_5691.npy
+15:58:43    Train: 5,407 | Val: 284

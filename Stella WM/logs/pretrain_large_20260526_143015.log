@@ -1,0 +1,36 @@
+14:30:15  Log: logs\pretrain_large_20260526_143015.log
+14:30:15  ==============================================================
+14:30:15    PRETRAIN — LargeRSSM 128.8M params
+14:30:15    Epochs: 10 | LR: 0.0001 | Batch: 16
+14:30:15    Wikipedia: 10000 artículos
+14:30:15  ==============================================================
+14:30:15  
+[1/4] Creando LargeRSSM...
+14:30:16    128.8M params | feat_dim=2560D
+14:30:16  
+[2/4] Cargando datos de Stella...
+14:30:16    Chats: 781 mensajes -> 39 secuencias
+14:30:16    Pensamientos: 179 textos -> +179 secuencias
+14:30:16    Episodios: 143 -> 1 secuencia
+14:30:16    Web triggers: 43 -> 1 secuencia
+14:30:16    Stella: 220 secuencias
+14:30:16  
+[3/4] Cargando Wikipedia ES (10000 artículos)...
+14:30:17    Streaming Wikipedia ES (hasta 10000 artículos)...
+14:30:24      1000/10000 artículos, 57395 secuencias
+14:30:25      2000/10000 artículos, 135591 secuencias
+14:30:28      3000/10000 artículos, 233556 secuencias
+14:30:28      4000/10000 artículos, 304330 secuencias
+14:30:29      5000/10000 artículos, 368364 secuencias
+14:30:29      6000/10000 artículos, 411947 secuencias
+14:30:31      7000/10000 artículos, 453518 secuencias
+14:30:31      8000/10000 artículos, 500527 secuencias
+14:30:32      9000/10000 artículos, 504707 secuencias
+14:30:32      10000/10000 artículos, 534303 secuencias
+14:30:32    Wikipedia ES: 10000 artículos -> 534303 secuencias
+14:30:32  
+[4/4] Codificando y entrenando...
+14:30:32    Total secuencias: 534523
+14:30:32    Codificando 2676602 textos en GPU...
+15:20:38    Codificadas: 534523 secuencias
+15:20:38    Train: 507797 | Val: 26726

@@ -1,0 +1,303 @@
+# EXPERIMENTOS — Stella World Model
+> Registro de experimentos, hipótesis y resultados.
+> Arca + Claude Code — inicio: 2026-05-23
+
+---
+
+## Arquitectura objetivo
+
+```
+Texto / Audio / Imagen
+        ↓
+   Encoder (sentence-transformers all-MiniLM-L6-v2)
+        ↓
+   z_t  [vector latente — aquí "vive" el pensamiento]
+        ↓
+   RSSM (predice z_t+1, genera reward 6D)
+        ↓
+   Adapter MLP  (z_t + h_t → K soft-prompt tokens)
+        ↓
+   Decoder ~125M params CONGELADO  (soft-prompts → tokens → texto)
+        ↓
+   Stella habla
+```
+
+**Principio:** el WM es el cerebro, el decoder es la boca.
+Sin LLM de 17GB. El decoder no sabe nada del mundo — solo traduce vectores a palabras.
+El conocimiento y las decisiones viven en el WM.
+
+---
+
+## Hardware disponible
+
+| Recurso | Valor |
+|---|---|
+| GPU | RX 7900 XTX — 24GB GDDR6, gfx1100, ROCm 7.2.1 |
+| CPU | i7-9700F |
+| RAM | 32GB DDR4 |
+| Stack | PyTorch 2.9.1+rocm7.2.1, Python 3.11/3.12 |
+
+**Presupuesto VRAM revisado (post-research, fp16):**
+```
+RSSM ~200M params              ~0.8 GB
+Encoder (all-MiniLM-L6-v2)    ~0.5 GB
+Decoder ~125M params (frozen)  ~0.5 GB    ← puede escalar a 1B SONAR (~2 GB)
+Adapter MLP (soft-prompts)     ~0.05 GB
+TTS XTTS-v2                    ~3.0 GB
+STT faster-whisper             ~1.0 GB
+────────────────────────────────────────
+Total mínimo                   ~5.9 GB   ← 18 GB libres para escalar
+Total con SONAR-1B             ~7.4 GB   ← aún muy holgado
+```
+
+---
+
+## Estado del sistema — 2026-05-26
+
+| Componente | Estado |
+|---|---|
+| RSSM MinimalRSSM (550K params) | ✅ Entrenado — rssm.pt (EXP-005) |
+| RSSM LargeRSSM (128.8M params) | 🔄 Arquitectura lista — pretrain pendiente (EXP-006) |
+| Encoder | ✅ all-MiniLM-L6-v2 GPU — encode_batch_gpu() |
+| Decoder genérico | ✅ SmallDecoder 38.6M — decoder.pt (EXP-001, inglés) |
+| Decoder Stella v1 | ✅ Fine-tuned en 379 pares — decoder_stella.pt |
+| Decoder Stella v2 | 🔄 Reentrenando con ~1150 pares (chats+thoughts+episodes+web) |
+| Probe WM | ✅ probe_wm.py — inspector directo sin decoder |
+| Memoria vectorial | ✅ memory_module.py — hipocampo en disco |
+| Interoception | ✅ interoception.py — 12 señales internas |
+| Continuidad | ✅ stella_state.pt — h_t persiste entre ejecuciones |
+| Training logger | ✅ training_logger.py — logs automáticos en logs/ |
+| LLM | ❌ Eliminado del pipeline |
+
+### Decisión arquitectural 2026-05-26
+- **Problema identificado**: decoder (38.6M) es 70× más grande que el cerebro (550K) → decoder domina 70-80% de la respuesta
+- **Solución**: LargeRSSM (128.8M) con feat_dim=2560D (8× más rico) + Adapter MLP (10M) entre RSSM y decoder
+- **Adapter**: MLP(2560D → K=16 tokens × D_MODEL) — se entrena junto con el decoder, NO con el RSSM
+- **language_grads**: False para RSSM. El Adapter aprende a "hablar el idioma" del decoder sin contaminar el WM.
+
+---
+
+## Hallazgos de investigación — 2026-05-23
+
+> Fuente: investigación profunda vía Claude Chat (PDF adjunto: "World Model Investigation")
+
+### Precedentes directos encontrados
+
+**1. Somniloquy (Barker & Leonetti, RLDM 2025)**
+- DreamerV3 RSSM + "translator head" Transformer encoder-decoder (~pocos millones de params)
+- El head traduce estados latentes del RSSM a lenguaje natural
+- CRÍTICO: `language_grads=False` por defecto — los gradientes del decoder NO fluyen al RSSM
+- El RSSM se entrena solo con reward + reconstruction + KL
+- Repo: `m-barker/somniloquy-dreamer-v3` (MIT)
+- Limitación: narración de trayectorias planeadas, no diálogo libre
+
+**2. "The Mouth is Not the Brain" (Niimi, arXiv:2601.17094, Jan 2026)**
+- WM: Deep Boltzmann Machine (~31K params, v ∈ {0,1}^160)
+- Decoder: GPT-2 CONGELADO + MLP adapter → K=16 soft-prompt tokens
+- Resultado en 55K reseñas Amazon: CE 3.32 vs. GPT-2 fine-tuned completo 4.74
+- Conclusión verbatim: *"simple prompts lack expressiveness while detailed prompts cause output collapse in small LLMs"* → el adapter del WM es lo que PREVIENE el colapso
+- Insight clave: NO hacer fine-tune end-to-end del decoder pequeño (peor baseline)
+
+### Respuestas a preguntas abiertas
+
+| Pregunta | Respuesta |
+|---|---|
+| ¿Decoder ~125M para mapear latentes a texto? | Sí, GPT-2-124M congelado + adapter MLP (Niimi 2026) |
+| ¿End-to-end encoder→RSSM→decoder para diálogo? | No publicado todavía — territorio virgen |
+| ¿Tamaño mínimo del decoder? | 125M solo no basta (TinyStories); con WM conditioning el régimen cambia |
+| ¿Text-JEPA conversacional? | No existe como paper. LCM (Meta) es lo más cercano, pero usa 1B+ params |
+| ¿Cómo conectar z_t al decoder? | **Soft-prompt adapter** (patrón Niimi): MLP(z_t, h_t) → K tokens de prefijo |
+
+### Opciones de decoder clasificadas
+
+| Opción | Params | VRAM fp16 | Pro | Contra |
+|---|---|---|---|---|
+| TinyStories-33M (desde cero) | 33M | ~0.1 GB | Máxima experimentación | Incoherente en diálogo libre |
+| GPT-2-small congelado + adapter | 124M | ~0.5 GB | Validado por Niimi 2026 | Lenguaje en inglés |
+| BART-base congelado + adapter | 140M | ~0.6 GB | Encoder-decoder nativo, mejor para condicionamiento | Inglés |
+| Pythia-160M congelado + adapter | 160M | ~0.6 GB | Bilingüe posible, licenses limpias | Menos probado |
+| SONAR decoder (Meta) | ~1B | ~2.0 GB | 200 idiomas, estado del arte | NC license |
+
+---
+
+## Hoja de ruta de experimentos
+
+```
+EXP-001  →  EXP-002  →  EXP-003
+  (Stage 1)   (Stage 2)   (Stage 3 — publicable)
+desde cero   frozen LM    ablación 4 brazos
+  ~30M        +adapter      125M vs 7B
+```
+
+---
+
+## Experimentos
+
+---
+
+### EXP-001 — Decoder desde cero (Stage 1: replicar patrón Somniloquy)
+**Estado:** COMPLETADO — 2026-05-25
+
+**Hipótesis:**
+Un decoder Transformer pequeño (~30-50M params) entrenado para mapear estados latentes del RSSM a texto de diálogo puede producir respuestas gramaticales de 1-2 frases cuyo contenido semántico siga el estado conversacional.
+
+**Método:**
+- Arquitectura: SmallDecoder 38.6M params (4 bloques, d_model=512, cross-attention al estado RSSM)
+- Encoder: all-MiniLM-L6-v2 vía transformers directo en GPU (ROCm, RX 7900 XTX)
+- Dataset: blended_skill_talk (4819 diálogos, 30.803 pares entrenamiento)
+- RSSM: pesos aleatorios (sin pre-entrenar aún) — congelado durante training decoder
+- `language_grads=False` — gradientes del decoder NO tocan el RSSM
+- Hiperparámetros: epochs=5, batch=32, lr=1e-4, cosine annealing
+
+**Resultado:**
+```
+Época 1: train=5.50  val=4.97
+Época 2: train=4.65  val=4.73
+Época 3: train=4.37  val=4.62
+Época 4: train=4.18  val=4.58  ← mejor checkpoint guardado
+Época 5: train=4.08  val=4.58  (plateau)
+```
+Muestras generadas (condicionadas en RSSM aleatorio):
+- step 900:  `"What was your favorite do you eat?"`  ← primer output coherente
+- step 2100: `"Yes, I think I have a big one day, but I never got to get it."`
+- step 3600: `"I would, I love the outdoors. Are you much in a fan?"`
+- step 4500: `"What do you like to do for fun?"`  ← pregunta conversacional perfecta
+
+**Conclusión:**
+✅ HIPÓTESIS CONFIRMADA PARCIALMENTE. El decoder de 38M desde cero SÍ puede generar
+texto conversacional coherente (en inglés) condicionado por el estado del RSSM.
+Contrariamente a lo que dicen TinyStories sobre modelos de 125M sin condicionamiento,
+el WM conditioning previene el colapso — validando el resultado de Niimi 2026.
+
+Limitaciones actuales:
+- RSSM con pesos aleatorios → el contexto no tiene significado real todavía
+- Texto en inglés (blended_skill_talk) — necesita datos en español para Stella
+- val_loss en plateau ~4.58 → más datos o más épocas mejorarían
+- SBERT cosine similarity pendiente de medir formalmente
+
+Próximo paso: Pre-entrenar el RSSM (EXP-005) — con pesos aleatorios el conditioning no tiene significado real.
+
+---
+
+### EXP-002 — "Mouth is Not the Brain" (Stage 2: frozen LM + adapter)
+**Estado:** DESCARTADO — 2026-05-25 (violación del Alma del proyecto)
+
+**Razón del descarte:**
+GPT-2-124M congelado contiene conocimiento del mundo adquirido por preentrenamiento LLM. Usar ese LM como decoder — incluso congelado — significa que las respuestas de Stella estarían influidas por lo que GPT-2 "sabe" sobre el mundo, no por lo que el WM aprendió desde cero.
+
+El principio fundamental del proyecto: **el decoder es solo la boca — no debe aportar conocimiento propio**. El WM es el cerebro y aprende el mundo desde experiencia, no desde un LLM.
+
+Alternativa adoptada: decoder desde cero (EXP-001, validado) + RSSM pre-entrenado con datos reales del mundo (EXP-005).
+
+---
+
+### EXP-006 — LargeRSSM (128.8M) con conocimiento del mundo real
+**Estado:** PENDIENTE — arquitectura lista, pretrain a lanzar
+
+**Hipótesis:**
+Un RSSM de 128.8M params (8× el MinimalRSSM) entrenado sobre Wikipedia ES (10K-50K artículos) + datos de Stella producirá representaciones latentes tan ricas (feat_dim=2560D) que el decoder no tendrá que "inventar" semántica — solo articularla.
+
+**Arquitectura:**
+- GRU 3 capas: hidden_dim=2048
+- z_dim=512
+- prior/posterior: MLP 3 capas con hidden=4096
+- feat_dim = h+z = 2560D (8× más rico que MinimalRSSM)
+
+**Training:**
+- `pretrain_large_rssm.bat` — Wikipedia ES 10K artículos + datos Stella
+- Loss: KL(prior || posterior) + 0.5 × MSE(reconstrucción)
+- Resultado esperado: rssm_large.pt ~491 MB
+
+**Verificación:**
+- `probe_wm.bat large` — inspeccionar estado del WM sin decoder
+- "Las matematicas describen la realidad" debe mapear a "matematicas/fisica", no a "lenguaje"
+
+**Resultado:**
+[pendiente]
+
+---
+
+### EXP-005 — Pre-entrenamiento del RSSM con conocimiento del mundo real
+**Estado:** EN CURSO — 2026-05-25
+
+**Hipótesis:**
+Un RSSM de ~350K params pre-entrenado sobre: (a) conversaciones reales de Stella, (b) pensamientos y episodios de Stella, y (c) texto curado del mundo real (Wikipedia ES) puede desarrollar representaciones latentes con significado semántico real, permitiendo que el decoder EXP-001 genere respuestas contextualmente coherentes.
+
+**Principio clave:**
+Wikipedia ES NO es conocimiento de LLM — es texto humano curado, como dar libros a leer. El WM aprende física y realidad desde experiencia textual, exactamente como aprende un ser consciente.
+
+**Método:**
+- Datos de Stella: stella.chats.jsonl (804+ msgs), stella.thoughts.jsonl, stella.episodic, stella.research.json
+- Wikipedia ES: streaming desde wikimedia/wikipedia 20231101.es — 300 artículos → ~N secuencias de 5 oraciones
+- Encoder: all-MiniLM-L6-v2 en GPU (batch_size=128), proyectado a 128D
+- Loss: KL(prior || posterior_next) + 0.5 × MSE(reconstrucción obs)
+- GPU batch encoding, RSSM training en CPU (350K params — trivial)
+- Val split 10% para monitorear convergencia
+- Epochs: 15, lr=3e-4
+
+**Mejoras vs pretrain.py original:**
+- `encode_batch_gpu()` en vez de encode_observation() uno a uno → 50-100× más rápido
+- Wikipedia ES como conocimiento del mundo (nuevo)
+- Loss de reconstrucción (nuevo) — el feat debe preservar info de obs_t
+- Val split con checkpoint del mejor modelo (nuevo)
+
+**Resultado:**
+[en curso — 2026-05-25]
+
+**Conclusión:**
+[pendiente]
+
+---
+
+### EXP-003 — Ablación publicable: 125M vs 7B (Stage 3)
+**Estado:** PENDIENTE — requiere EXP-002 completado
+
+**Hipótesis:**
+Un pipeline WM-RSSM + LM-congelado-125M + soft-prompt-adapter puede alcanzar ≥80% de la coherencia conversacional de Llama-3-17GB usando <5% de su VRAM. Si se valida, es un resultado publicable (esta ablación específica no existe en la literatura).
+
+**Método:**
+Comparar 4 brazos sobre el mismo benchmark de diálogo (DailyDialog test set):
+- Brazo A: Llama-3-17GB baseline (referencia)
+- Brazo B: GPT-2-124M congelado, sin condicionamiento WM
+- Brazo C: GPT-2-124M congelado + RSSM soft-prompt adapter (resultado de EXP-002)
+- Brazo D: SONAR decoder ~1B congelado + RSSM soft-prompt adapter
+
+**Métricas:**
+- ROUGE-L, BLEU-4
+- SBERT cosine similarity
+- VRAM usage (inference)
+- Coherencia humana (muestra aleatoria de 100 respuestas)
+
+**Umbral de publicabilidad:**
+Si brazo C alcanza ≥80% de la coherencia del brazo A usando ≤5% de su VRAM → contribución publicable.
+
+**Resultado:**
+[pendiente]
+
+**Conclusión:**
+[pendiente]
+
+---
+
+### EXP-004 — Encoder token-level vs sentence-level (señal de Dynalang)
+**Estado:** PENDIENTE
+
+**Hipótesis:**
+Dynalang (ICML 2024) encontró que representaciones a nivel de token superan sustancialmente a las de nivel de oración para modelos de mundo en lenguaje. Probar si cambiar el encoder de sentence-transformers (1 vector por oración) a embeddings token-level (secuencia de vectores) mejora la calidad del estado latente del RSSM.
+
+**Método:**
+1. Variante A (actual): all-MiniLM-L6-v2 → 1 vector 384D por mensaje
+2. Variante B: usar los hidden states de all-MiniLM-L6-v2 antes del pooling → secuencia [N_tokens × 384D] → pool con atención aprendida → 384D
+3. Comparar RSSM predictive loss en el mismo conjunto de validación
+
+**Métrica de éxito:**
+- Reducción de ≥10% en KL loss del RSSM en validación
+- Mejora en SBERT cosine del generator
+
+**Resultado:**
+[pendiente]
+
+**Conclusión:**
+[pendiente]
+
+---

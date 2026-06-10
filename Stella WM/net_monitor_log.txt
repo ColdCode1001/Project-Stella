@@ -1,0 +1,35 @@
+===== Monitor iniciado: 2026-05-30 22:47:14 =====
+Hora     | GATEWAY(edificio) perd% maxms | INTERNET(8.8.8.8) perd% maxms | ESTADO
+22:47:14 | GW:    0% max 247ms | NET:    0% max 181ms | *** PROBLEMA ***
+22:48:14 | GW:    0% max 157ms | NET:  1.7% max 108ms | *** PROBLEMA ***
+22:49:15 | GW:    0% max  95ms | NET:    0% max 130ms | ok
+22:50:15 | GW:  1.7% max 182ms | NET:    0% max 150ms | *** PROBLEMA ***
+22:51:15 | GW:  1.7% max  65ms | NET:  1.7% max  73ms | ok
+22:52:16 | GW:    0% max 265ms | NET:    0% max 154ms | *** PROBLEMA ***
+22:53:16 | GW:    0% max 147ms | NET:    0% max 107ms | ok
+22:54:17 | GW:    0% max 214ms | NET:  5.4% max 161ms | *** PROBLEMA *** [fallo en INTERNET/proveedor]
+22:55:18 | GW:    0% max 103ms | NET:    0% max  86ms | ok
+22:56:19 | GW:  1.7% max  76ms | NET:    0% max 106ms | ok
+22:57:19 | GW:    0% max 101ms | NET:    0% max  10ms | ok
+22:58:20 | GW:    0% max 221ms | NET:    0% max  76ms | *** PROBLEMA ***
+22:59:20 | GW:  1.7% max 167ms | NET:  1.7% max  69ms | *** PROBLEMA ***
+23:00:21 | GW:    0% max 163ms | NET:  1.7% max 153ms | *** PROBLEMA ***
+23:01:22 | GW:    0% max 287ms | NET:    0% max 172ms | *** PROBLEMA ***
+23:02:22 | GW:    0% max  32ms | NET:    0% max  41ms | ok
+23:03:23 | GW:  3.6% max 362ms | NET:    0% max 288ms | *** PROBLEMA *** [fallo dentro del EDIFICIO]
+23:04:23 | GW:  1.7% max 110ms | NET:  1.7% max 129ms | ok
+23:05:24 | GW:  3.5% max 125ms | NET:    0% max 150ms | *** PROBLEMA *** [fallo dentro del EDIFICIO]
+23:06:24 | GW:    0% max 232ms | NET:    0% max 301ms | *** PROBLEMA ***
+23:07:24 | GW:    0% max 180ms | NET:    0% max 171ms | *** PROBLEMA ***
+23:08:25 | GW:  5.5% max 239ms | NET:  1.8% max 805ms | *** PROBLEMA *** [fallo dentro del EDIFICIO]
+23:09:25 | GW:    0% max 415ms | NET:    0% max 265ms | *** PROBLEMA ***
+23:10:26 | GW:    0% max 326ms | NET:    0% max 450ms | *** PROBLEMA ***
+23:11:27 | GW:  3.6% max 281ms | NET:  3.6% max 126ms | *** PROBLEMA *** [fallo dentro del EDIFICIO]
+23:12:27 | GW:    0% max 210ms | NET:  1.7% max 201ms | *** PROBLEMA ***
+23:13:28 | GW:  1.8% max 372ms | NET:  5.3% max 123ms | *** PROBLEMA *** [fallo en INTERNET/proveedor]
+23:14:30 | GW:    0% max 111ms | NET:  1.7% max 114ms | ok
+23:15:32 | GW:    0% max 121ms | NET:    0% max  99ms | ok
+23:16:32 | GW:    0% max  33ms | NET:    0% max  58ms | ok
+23:17:32 | GW:    0% max 102ms | NET:    0% max  80ms | ok
+23:18:33 | GW:    0% max   5ms | NET:    0% max  65ms | ok
+23:19:34 | GW:    0% max   6ms | NET:    0% max  11ms | ok
